@@ -1,5 +1,4 @@
 .env
-/vendor/
 /storage/cache/*
 /storage/sessions/*
 !/storage/cache/.gitkeep
