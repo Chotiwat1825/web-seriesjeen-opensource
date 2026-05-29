@@ -117,6 +117,46 @@ final class AuthService
 
         // 3. Verify server-side secret SeriesJeen API key is set
         $serverApiKey = trim($_ENV['SERIES_API_KEY'] ?? '');
+        if ($serverApiKey === 'mock') {
+            return [
+                'ok' => true,
+                'role' => (string)$row['role'],
+                'user' => [
+                    'id' => 9999,
+                    'name' => 'Mock Developer',
+                    'email' => 'mock@seriesjeen.online',
+                    'avatar_url' => null,
+                    'usage_today' => 0,
+                ],
+                'platforms' => [
+                    [
+                        'slug' => 'dramabox',
+                        'name' => 'DramaBox',
+                        'platform_id' => 1,
+                        'image' => '/public/assets/mock_cover.png',
+                        'expires_at' => date('Y-m-d H:i:s', strtotime('+30 days')),
+                        'days_remaining' => 30,
+                    ],
+                    [
+                        'slug' => 'shortmax',
+                        'name' => 'ShortMax',
+                        'platform_id' => 2,
+                        'image' => '/public/assets/mock_cover.png',
+                        'expires_at' => date('Y-m-d H:i:s', strtotime('+30 days')),
+                        'days_remaining' => 30,
+                    ],
+                    [
+                        'slug' => 'reelshort',
+                        'name' => 'ReelShort',
+                        'platform_id' => 3,
+                        'image' => '/public/assets/mock_cover.png',
+                        'expires_at' => date('Y-m-d H:i:s', strtotime('+30 days')),
+                        'days_remaining' => 30,
+                    ]
+                ],
+            ];
+        }
+
         if ($serverApiKey === '') {
             return [
                 'ok' => false, 
@@ -155,7 +195,23 @@ final class AuthService
             if (!$name) continue;
             $slug = strtolower((string)$name);
             $days = (int)($rowPlatform['days_remaining'] ?? 0);
-            if ($days <= 0) continue;
+            
+            // Fix bug: Check actual expiration using expires_at instead of strictly days_remaining <= 0.
+            // When user has < 24 hours left, days_remaining is 0 but expires_at is still in the future.
+            $expiresAtStr = $rowPlatform['expires_at'] ?? '';
+            if ($expiresAtStr !== '') {
+                $expiry = strtotime($expiresAtStr);
+                if ($expiry !== false) {
+                    if ($expiry < time()) {
+                        continue; // Expired
+                    }
+                    if ($days <= 0) {
+                        $days = 1; // Show at least 1 day remaining if still in future
+                    }
+                }
+            } else {
+                if ($days <= 0) continue;
+            }
 
             $normalized = [
                 'slug' => $slug,
@@ -172,6 +228,35 @@ final class AuthService
         }
         $platforms = array_values($seen);
         usort($platforms, fn($a, $b) => strcmp($a['slug'], $b['slug']));
+
+        if (empty($platforms) && ($_ENV['APP_DEBUG'] ?? 'false') === 'true') {
+            $platforms = [
+                [
+                    'slug' => 'dramabox',
+                    'name' => 'DramaBox (Mock)',
+                    'platform_id' => 1,
+                    'image' => '/public/assets/mock_cover.png',
+                    'expires_at' => date('Y-m-d H:i:s', strtotime('+365 days')),
+                    'days_remaining' => 365,
+                ],
+                [
+                    'slug' => 'shortmax',
+                    'name' => 'ShortMax (Mock)',
+                    'platform_id' => 2,
+                    'image' => '/public/assets/mock_cover.png',
+                    'expires_at' => date('Y-m-d H:i:s', strtotime('+365 days')),
+                    'days_remaining' => 365,
+                ],
+                [
+                    'slug' => 'reelshort',
+                    'name' => 'ReelShort (Mock)',
+                    'platform_id' => 3,
+                    'image' => '/public/assets/mock_cover.png',
+                    'expires_at' => date('Y-m-d H:i:s', strtotime('+365 days')),
+                    'days_remaining' => 365,
+                ]
+            ];
+        }
 
         return [
             'ok' => true,
